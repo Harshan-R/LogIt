@@ -1,14 +1,9 @@
-//..lib/syncUser.ts
-
+// ..lib/syncUser.ts
+import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
-export async function syncUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return { error: error?.message || "User not found" };
+export async function syncUser(user: User) {
+  if (!user) return { error: "No user provided" };
 
   const authId = user.id;
   const { full_name, organization_id } = user.user_metadata || {};
@@ -17,7 +12,7 @@ export async function syncUser() {
     return { error: "Missing metadata: organization_id or full_name" };
   }
 
-  // Check if user already exists in our table
+  // Check if user already exists
   const { data: existingUser, error: fetchError } = await supabase
     .from("users")
     .select("*")
