@@ -1,4 +1,4 @@
-//..components/Sidebar.tsx
+// ..components/Sidebar.tsx
 
 "use client";
 
@@ -13,6 +13,10 @@ import {
   UsersIcon,
 } from "lucide-react";
 
+interface SidebarProps {
+  role: string;
+}
+
 const links = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
   { name: "Upload Sheets", href: "/dashboard/upload", icon: UploadIcon },
@@ -20,7 +24,7 @@ const links = [
   { name: "Employees", href: "/dashboard/employees", icon: UsersIcon },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -47,7 +51,11 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-8 border-t pt-4">
+      <div className="mt-8 border-t pt-4 text-xs text-gray-500">
+        Role: <span className="capitalize font-medium">{role}</span>
+      </div>
+
+      <div className="mt-4">
         <Link
           href="/auth/logout"
           className="flex items-center gap-3 text-sm text-red-500 hover:text-red-700"

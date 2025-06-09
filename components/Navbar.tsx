@@ -2,31 +2,20 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 
-export default function Navbar() {
+interface NavbarProps {
+  userName: string;
+  organizationId: string;
+}
+
+export default function Navbar({ userName, organizationId }: NavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [userEmail, setUserEmail] = useState("");
-
-  useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        setUserEmail(user.email || "");
-      }
-    };
-
-    getUser();
-  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -40,13 +29,16 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="text-sm text-gray-700">{userEmail}</div>
+        <div className="text-sm text-gray-700 text-right">
+          <div>{userName}</div>
+          <div className="text-xs text-gray-400">Org ID: {organizationId}</div>
+        </div>
         <Avatar>
           <AvatarImage
             src="https://api.dicebear.com/7.x/initials/svg?seed=user"
             alt="avatar"
           />
-          <AvatarFallback>U</AvatarFallback>
+          <AvatarFallback>{userName[0]}</AvatarFallback>
         </Avatar>
         <Button variant="outline" size="sm" onClick={handleLogout}>
           Logout
