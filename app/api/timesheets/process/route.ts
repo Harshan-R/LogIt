@@ -2,7 +2,6 @@
 
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-// import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
 import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
 import type { TimesheetRow, OllamaAnalysisResult } from "@/types";
 
@@ -35,7 +34,19 @@ export async function POST(req: Request) {
 
     await Promise.all(updates);
 
-    return NextResponse.json({ message: "Timesheets updated successfully." });
+    // Step 3: Insert overall monthly summary into summaries table
+    await supabase.from("summaries").insert([
+      {
+        type: "monthly",
+        summary: ollamaResponse.summary,
+        rating: ollamaResponse.overall_rating,
+        employee_id: null, // team-level summary
+      },
+    ]);
+
+    return NextResponse.json({
+      message: "Timesheets updated and summary saved successfully.",
+    });
   } catch (error) {
     console.error("Error processing timesheet:", error);
     return NextResponse.json(

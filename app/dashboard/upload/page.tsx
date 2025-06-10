@@ -4,59 +4,105 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { parseTimesheetFile } from "@/lib/parseTimesheetFile";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [parsedData, setParsedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) setFile(selected);
+    const uploaded = e.target.files?.[0];
+    if (uploaded) {
+      setFile(uploaded);
+    }
+  };
+
+  const handleParse = async () => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const result = await parseTimesheetFile(file);
+      setParsedData(result);
+      toast.success("File parsed successfully!");
+    } catch (err) {
+      toast.error("Failed to parse file");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleUpload = async () => {
-    if (!file) return toast.error("Please select a file");
-
+    if (parsedData.length === 0) return;
     setLoading(true);
+    try {
+      const res = await fetch("/api/timesheets/process", {
+        method: "POST",
+        body: JSON.stringify({ entries: parsedData }),
+        headers: { "Content-Type": "application/json" },
+      });
 
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ records: jsonData }),
-    });
-
-    const result = await res.json();
-    if (res.ok) {
-      toast.success("Sheet uploaded successfully!");
-    } else {
-      toast.error(result.error || "Upload failed");
+      if (!res.ok) throw new Error("Upload failed");
+      toast.success("Timesheets uploaded & analyzed!");
+      setFile(null);
+      setParsedData([]);
+    } catch (err) {
+      toast.error("Failed to upload and analyze timesheets");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <Card className="max-w-2xl mx-auto mt-12 p-6 space-y-6">
+    <Card className="max-w-3xl mx-auto mt-10 p-6">
       <CardContent className="space-y-4">
         <h2 className="text-xl font-semibold">Upload Timesheet</h2>
-        <Input
-          type="file"
-          accept=".xlsx, .xls, .csv"
-          onChange={handleFileChange}
-        />
-        <Button onClick={handleUpload} disabled={loading || !file}>
-          {loading ? "Uploading..." : "Upload"}
-        </Button>
+        <Input type="file" accept=".csv, .xlsx" onChange={handleFileChange} />
+
+        <div className="flex gap-2">
+          <Button disabled={!file || loading} onClick={handleParse}>
+            Parse
+          </Button>
+          <Button
+            disabled={parsedData.length === 0 || loading}
+            onClick={handleUpload}
+            variant="outline"
+          >
+            Upload & Analyze
+          </Button>
+        </div>
+
+        {parsedData.length > 0 && (
+          <div className="border rounded p-2 text-sm max-h-80 overflow-auto">
+            <table className="min-w-full text-left">
+              <thead>
+                <tr>
+                  {Object.keys(parsedData[0]).map((key) => (
+                    <th key={key} className="p-1 border-b text-muted-foreground">
+                      {key}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parsedData.slice(0, 10).map((row, i) => (
+                  <tr key={i} className="border-t">
+                    {Object.values(row).map((val, j) => (
+                      <td key={j} className="p-1">{val as string}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-gray-400 mt-1">
+              Showing first 10 rows...
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
