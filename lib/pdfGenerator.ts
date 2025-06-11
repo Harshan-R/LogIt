@@ -1,4 +1,4 @@
-//..lib/pdfGenerator.ts
+// ..lib/pdfGenerator.ts
 
 import {
   Document,
@@ -6,11 +6,11 @@ import {
   Text,
   View,
   StyleSheet,
+  Image,
   Font,
   pdf,
 } from "@react-pdf/renderer";
 
-// Types
 type PDFOptions = {
   orgName: string;
   employee: {
@@ -31,9 +31,13 @@ type PDFOptions = {
     rating: number;
   }[];
   average_rating: number | null;
+
+  // ✅ base64 chart images
+  barChartImg: string; // base64 image string
+  areaChartImg: string;
+  radialChartImg: string;
 };
 
-// ShadCN-like styles
 const styles = StyleSheet.create({
   page: {
     padding: 30,
@@ -55,7 +59,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: "bold",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   text: {
     fontSize: 11,
@@ -65,7 +69,6 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#ffffff",
     borderRadius: 6,
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
     marginBottom: 10,
   },
   tableHeader: {
@@ -73,120 +76,77 @@ const styles = StyleSheet.create({
     backgroundColor: "#e9ecef",
     padding: 6,
     fontWeight: "bold",
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
   },
   tableRow: {
     flexDirection: "row",
     padding: 6,
     borderBottom: "0.5 solid #dee2e6",
-    backgroundColor: "#fff",
   },
   cell: {
     flex: 1,
     paddingRight: 5,
   },
-  barChart: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  bar: {
-    height: 8,
-    backgroundColor: "#4f46e5",
-    borderRadius: 4,
-  },
-  areaChartContainer: {
-    backgroundColor: "#e0e7ff",
-    height: 40,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginVertical: 10,
-    flexDirection: "row",
-  },
-  areaSegment: {
-    height: "100%",
-    backgroundColor: "#6366f1",
-    opacity: 0.8,
-  },
-  radialChart: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    border: "6 solid #6366f1",
-    justifyContent: "center",
-    alignItems: "center",
+  chartImage: {
+    width: 450,
+    height: 180,
     marginVertical: 10,
     alignSelf: "center",
   },
+  radialChartImage: {
+    width: 100,
+    height: 100,
+    alignSelf: "center",
+    marginVertical: 12,
+  },
 });
 
-// PDF Generator Function
-export async function generatePDF({
+export async function generatePDFWithCharts({
   orgName,
   employee,
   timesheets,
   summaries,
   average_rating,
+  barChartImg,
+  areaChartImg,
+  radialChartImg,
 }: PDFOptions): Promise<Uint8Array> {
-  const maxHours = Math.max(...timesheets.map((t) => t.hours_worked), 8);
   const doc = (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Title */}
         <Text style={styles.title}>{orgName}</Text>
 
-        {/* Employee Details */}
+        {/* Employee Info */}
         <View style={styles.section}>
           <Text style={styles.label}>Employee Details</Text>
           <Text style={styles.text}>ID: {employee.emp_id}</Text>
           <Text style={styles.text}>Name: {employee.name}</Text>
-          <Text style={styles.text}>Designation: {employee.designation || "N/A"}</Text>
+          <Text style={styles.text}>
+            Designation: {employee.designation || "N/A"}
+          </Text>
         </View>
 
-        {/* Radial Chart for Average Rating */}
-        {average_rating !== null && (
-          <View style={styles.radialChart}>
-            <Text style={{ fontSize: 16, fontWeight: "bold", color: "#1d1d1f" }}>
-              {average_rating.toFixed(1)}
-            </Text>
-          </View>
+        {/* Radial Chart Image */}
+        {radialChartImg && (
+          <Image style={styles.radialChartImage} src={radialChartImg} />
         )}
 
         {/* Ratings Bar Chart */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Ratings Overview</Text>
-          {summaries.map((s, i) => (
-            <View key={i} style={styles.barChart}>
-              <Text style={{ width: 80 }}>{s.type}</Text>
-              <View
-                style={[
-                  styles.bar,
-                  { width: `${(s.rating / 10) * 100}%`, marginLeft: 6 },
-                ]}
-              />
-              <Text style={{ marginLeft: 6 }}>{s.rating}/10</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Area Chart for Hours Worked */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Hours Worked Overview</Text>
-          <View style={styles.areaChartContainer}>
-            {timesheets.map((t, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.areaSegment,
-                  { width: `${(1 / timesheets.length) * 100}%`, opacity: t.hours_worked / maxHours },
-                ]}
-              />
-            ))}
+        {barChartImg && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Ratings Overview</Text>
+            <Image style={styles.chartImage} src={barChartImg} />
           </View>
-        </View>
+        )}
 
-        {/* Timesheet Table */}
+        {/* Hours Area Chart */}
+        {areaChartImg && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Hours Worked Overview</Text>
+            <Image style={styles.chartImage} src={areaChartImg} />
+          </View>
+        )}
+
+        {/* Timesheet Entries */}
         <View style={styles.section}>
           <Text style={styles.label}>Timesheet Entries</Text>
           <View style={styles.tableHeader}>
