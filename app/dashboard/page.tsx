@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClockIcon, UserIcon, FileBarChart2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { InsightsCard } from "@/components/insights/InsightsCard";
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,7 @@ export default function DashboardPage() {
           />
         </>
       )}
+      <InsightsCard />
     </div>
   );
 }
