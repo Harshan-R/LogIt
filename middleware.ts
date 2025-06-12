@@ -10,10 +10,10 @@ export function middleware(request: NextRequest) {
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   const token = request.cookies.get("sb-access-token")?.value;
 
-  if (isProtected && !token) {
-    const loginUrl = new URL("/auth/login", request.url);
-    return NextResponse.redirect(loginUrl);
-  }
+  // if (isProtected && !token) {
+  //   const loginUrl = new URL("/auth/login", request.url);
+  //   return NextResponse.redirect(loginUrl);
+  // }
 
   return NextResponse.next();
 }

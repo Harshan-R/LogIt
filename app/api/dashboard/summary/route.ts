@@ -6,9 +6,10 @@ import { supabase } from "@/lib/supabaseClient";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { org_id, emp_id, employee_name, project_id, from_date, to_date } =
+    const { emp_id, employee_name, project_id, from_date, to_date } =
       body;
 
+    const org_id = "2d33db3a-232a-477e-bf67-7132efb1aa63";
     if (!org_id) {
       return NextResponse.json(
         { error: "org_id is required" },

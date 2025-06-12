@@ -3,36 +3,24 @@ import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
 export async function syncUser(user: User) {
-  if (!user) return { error: "No user provided" };
-
-  const authId = user.id;
-  const { full_name, organization_id } = user.user_metadata || {};
-
-  if (!organization_id || !full_name) {
-    return { error: "Missing metadata: organization_id or full_name" };
+  if (!user || !user.email) {
+    return { error: "No user or email provided" };
   }
 
-  // Check if user already exists
-  const { data: existingUser, error: fetchError } = await supabase
+  // Check if user exists in the users table by email
+  const { data: existingUser, error } = await supabase
     .from("users")
-    .select("*")
-    .eq("auth_id", authId)
+    .select("id, org_id, role")
+    .eq("email", user.email)
     .single();
 
-  if (fetchError && fetchError.code !== "PGRST116") {
-    return { error: fetchError.message };
+  if (error) {
+    return { error: "User not found in database. Access denied." };
   }
 
-  if (!existingUser) {
-    const { error: insertError } = await supabase.from("users").insert({
-      auth_id: authId,
-      name: full_name,
-      role: "team_lead", // default role
-      organization_id,
-    });
-
-    if (insertError) return { error: insertError.message };
-  }
-
-  return { success: true };
+  // Optional: attach to context, log it, or return it
+  return {
+    success: true,
+    user: existingUser,
+  };
 }

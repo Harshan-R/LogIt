@@ -27,8 +27,8 @@ export default async function DashboardLayout({
 
         {/* <Toaster />
         {children} */}
-        <SonnerToaster />
-        {children}
+        {/* <SonnerToaster />
+        {children} */}
 
         <main className="flex-1 p-4 overflow-y-auto">{children}</main>
       </div>

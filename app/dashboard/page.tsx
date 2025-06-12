@@ -1,12 +1,19 @@
-// ..app/dashboard/page.tsx
+//..app/dashboard/page.tsx
+
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClockIcon, UserIcon, FileBarChart2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ClockIcon,
+  UserIcon,
+  FileBarChart2Icon,  
+  LayoutDashboardIcon,
+} from "lucide-react";
 import { InsightsCard } from "@/components/insights/InsightsCard";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -14,27 +21,54 @@ export default function DashboardPage() {
     totalHours: 0,
     totalEmployees: 0,
     totalSheets: 0,
+    totalProjects: 0,
   });
 
   useEffect(() => {
-    setTimeout(() => {
+    const fetchDashboardStats = async () => {
+      setLoading(true);
+
+      const orgId = "2d33db3a-232a-477e-bf67-7132efb1aa63" ; 
+      //localStorage.setItem("org_id", "2d33db3a-232a-477e-bf67-7132efb1aa63");
+
+
+      const [empRes, tsRes, prjRes] = await Promise.all([
+        supabase
+          .from("employees")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId),
+        supabase
+          .from("timesheets")
+          .select("hours_worked", { count: "exact" })
+          .eq("org_id", orgId),
+        supabase
+          .from("projects")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId),
+      ]);
+
+      const totalHours =
+        tsRes.data?.reduce((acc, cur) => acc + cur.hours_worked, 0) || 0;
+
       setStats({
-        totalHours: 1275,
-        totalEmployees: 14,
-        totalSheets: 52,
+        totalHours,
+        totalEmployees: empRes.count || 0,
+        totalSheets: tsRes.count || 0,
+        totalProjects: prjRes.count || 0,
       });
+
       setLoading(false);
-    }, 1200);
+    };
+
+    fetchDashboardStats();
   }, []);
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-6 md:grid-cols-4">
       {loading ? (
-        <>
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </>
+        Array(4)
+          .fill(0)
+          .map((_, i) => <Skeleton key={i} className="h-32 w-full" />)
       ) : (
         <>
           <StatCard
@@ -55,9 +89,17 @@ export default function DashboardPage() {
             icon={<FileBarChart2Icon className="w-6 h-6 text-purple-600" />}
             badge="Reports"
           />
+          <StatCard
+            title="Projects"
+            value={`${stats.totalProjects}`}
+            icon={<LayoutDashboardIcon className="w-6 h-6 text-orange-600" />}
+            badge="Projects"
+          />
         </>
       )}
-      <InsightsCard />
+      <div className="col-span-full">
+        <InsightsCard />
+      </div>
     </div>
   );
 }
