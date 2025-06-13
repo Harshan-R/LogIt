@@ -1,18 +1,16 @@
 // app/api/upload/route.ts
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ✅ use admin client
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
-import * as xlsx from "xlsx";
+import { parseTimesheetExcel } from "@/lib/excelParser";
 import { TimesheetEntry, OllamaAnalysisResult } from "@/types";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
   const file = formData.get("file") as File;
-  const orgId = formData.get("orgId") as string;
-  const userId = formData.get("userId") as string;
-
-  if (!file || !orgId || !userId) {
+  
+  if (!file ) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
@@ -31,29 +29,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 });
   }
 
-  // 🟨 Parse Excel
-  const workbook = xlsx.read(fileBuffer);
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
+  // ✅ Parse Excel using shared utility
+  let parsedRows: TimesheetEntry[];
+  try {
+    parsedRows = await parseTimesheetExcel(file);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to parse Excel file" },
+      { status: 400 }
+    );
+  }
 
-  const jsonData = xlsx.utils.sheet_to_json(sheet) as TimesheetEntry[];
+  // ✅ Analyze with Ollama
+  let analyzed: OllamaAnalysisResult;
+  try {
+    analyzed = await analyzeTimesheetWithOllama(parsedRows);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Ollama analysis failed" },
+      { status: 500 }
+    );
+  }
 
-  // 🟩 Analyze with Ollama
-  const analyzed: OllamaAnalysisResult = await analyzeTimesheetWithOllama(
-    jsonData
-  );
-
-  // 🟦 Enrich data with Ollama output
-  const enriched = jsonData.map((row, idx) => ({
-    employee_id: row.employee_id,
-    project_id: row.project_id,
+  // ✅ Enrich parsed rows with AI analysis
+  const enriched = parsedRows.map((row, idx) => ({
+    employee_id: row.emp_id || row.employee_id,
+    project: row.project || null,
     date: row.date,
     work_summary: row.work_summary ?? null,
     hours_worked: row.hours_worked ?? 0,
     is_leave: row.is_leave ?? false,
     performance: analyzed.entries[idx]?.performance ?? "",
     learning_note: analyzed.entries[idx]?.learning_note ?? "",
-    created_by: userId,
+    
+   
   }));
 
   const { error: insertError } = await supabaseAdmin

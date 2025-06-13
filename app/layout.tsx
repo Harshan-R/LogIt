@@ -33,8 +33,8 @@ export default function RootLayout({
       >
         // inside RootLayout or DashboardLayout
         
-        <SonnerToaster />
-        {children}
+        {/* <SonnerToaster />
+        {children} */}
         <UserProvider>{children}</UserProvider>
       </body>
     </html>

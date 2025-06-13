@@ -1,62 +1,39 @@
-// lib/ollamaUtils.ts
+//..lib/ollamaUtils.ts
 
-type TimesheetEntry = {
-  id: string;
-  employee_id: string;
-  date: string;
-  work_summary: string;
-  hours_worked: number;
-};
-
-type OllamaAnalysisEntry = {
-  id: string;
-  performance: string;
-  learning_note: string;
-};
-
-type OllamaAnalysisResult = {
-  summary: string;
-  overall_rating: number;
-  entries: OllamaAnalysisEntry[];
-};
+import { ParsedTimesheetRow, OllamaAnalysisResult } from "@/types";
 
 export async function analyzeTimesheetWithOllama(
-  entries: TimesheetEntry[]
+  empId: string,
+  monthYear: string,
+  entries: ParsedTimesheetRow[]
 ): Promise<OllamaAnalysisResult> {
   const formatted = entries
     .map(
       (e) =>
-        `ID: ${e.id}, Date: ${e.date}, Employee: ${e.employee_id}, Hours: ${
-          e.hours_worked
-        }, Summary: ${e.work_summary || "N/A"}`
+        `Date: ${e.date}, Day: ${e.day}, Project: ${e.project}, Team: ${
+          e.team
+        }, Hours: ${e.hours_worked}, Assigned: ${
+          e.work_assigned || "N/A"
+        }, Done: ${e.work_done || "N/A"}`
     )
     .join("\n");
 
   const prompt = `
-You're an AI assistant analyzing employee timesheet data.
-Each entry includes ID, date, employee ID, hours worked, and a summary of work.
+You are an AI assistant analyzing an employee's monthly timesheet performance.
 
-1. For each entry, return:
-   - the same "id"
-   - a short "performance" comment
-   - one "learning_note"
+Instructions:
+- The data contains multiple rows. Each row represents one working day.
+- Compare the "Work Assigned" and "Work Done" fields to evaluate the quality of daily output.
+- The "Hours Worked" field indicates daily effort.
+- Weekends and leave days may exist; skip evaluating those.
+- Do NOT evaluate line by line. Instead, generate an overall monthly summary.
 
-2. Then provide:
-   - "summary": a single paragraph summarizing overall performance
-   - "overall_rating": number from 1.0 to 5.0
-
-Return strictly in this JSON format:
-
+Return strictly this JSON format:
 {
-  "summary": "Overall team performed well...",
-  "overall_rating": 4.5,
-  "entries": [
-    {
-      "id": "UUID-123",
-      "performance": "Completed tasks efficiently.",
-      "learning_note": "Improved knowledge of Docker and CI/CD."
-    }
-  ]
+  "emp_id": "${empId}",
+  "month_year": "${monthYear}",
+  "summary": "A detailed paragraph analyzing the employee's overall performance.",
+  "rating": 7.5
 }
 
 Timesheet Data:
@@ -78,11 +55,18 @@ ${formatted}
   const json = await response.json();
 
   try {
-    const match = json.response.match(/\{[\s\S]*\}/); // match full JSON block
-    if (!match) throw new Error("Full JSON object not found in response.");
-
+    const match = json.response.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Could not find valid JSON.");
     const result = JSON.parse(match[0]);
-    return result as OllamaAnalysisResult;
+
+    // Attach parsed timesheet JSON
+    return {
+      emp_id: empId,
+      month_year: monthYear,
+      summary: result.summary,
+      rating: result.rating,
+      json_data: entries,
+    };
   } catch (err) {
     console.error("Failed to parse Ollama response:", json.response);
     throw err;

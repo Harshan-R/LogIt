@@ -1,56 +1,63 @@
-// File: app/api/dashboard/summary/route.ts
+//..app/api/dashboard/summary/route.ts
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
-    const { emp_id, employee_name, project_id, from_date, to_date } =
-      await req.json();
-    const org_id = "2d33db3a-232a-477e-bf67-7132efb1aa63";
+    const { emp_id, employee_name, from_date, to_date } = await req.json();
 
-    if (!org_id) {
-      return NextResponse.json(
-        { error: "org_id is required" },
-        { status: 400 }
-      );
+    // ✅ Step 1: Fetch employees based on filters
+    let employeeQuery = supabaseAdmin.from("employees").select("*");
+
+    if (emp_id) {
+      employeeQuery = employeeQuery.ilike("emp_id", `%${emp_id}%`);
     }
 
-    let employeeQuery = supabaseAdmin
-      .from("employees")
-      .select("*")
-      .eq("org_id", org_id);
-
-    if (emp_id) employeeQuery = employeeQuery.ilike("emp_id", `%${emp_id}%`);
-    if (employee_name)
+    if (employee_name) {
       employeeQuery = employeeQuery.ilike("name", `%${employee_name}%`);
+    }
 
     const { data: employees, error: empError } = await employeeQuery;
+
     if (empError || !employees?.length) {
       return NextResponse.json(
-        { error: "No employees found" },
+        { error: "No employees found", details: empError?.message },
         { status: 404 }
       );
     }
 
     const employeeIds = employees.map((e) => e.id);
 
-    let timesheetQuery = supabaseAdmin
-      .from("timesheets")
-      .select("*, project:project_id(name)")
+    // ✅ Step 2: Fetch uploaded files (simulate timesheets)
+    let uploadsQuery = supabaseAdmin
+      .from("uploads")
+      .select("id, employee_id, file_path, month_year, created_at")
       .in("employee_id", employeeIds);
 
-    if (project_id)
-      timesheetQuery = timesheetQuery.eq("project_id", project_id);
-    if (from_date) timesheetQuery = timesheetQuery.gte("date", from_date);
-    if (to_date) timesheetQuery = timesheetQuery.lte("date", to_date);
+    if (from_date) {
+      uploadsQuery = uploadsQuery.gte("created_at", from_date);
+    }
 
-    const { data: timesheets } = await timesheetQuery;
+    if (to_date) {
+      uploadsQuery = uploadsQuery.lte("created_at", to_date);
+    }
 
-    const { data: summaries } = await supabaseAdmin
+    const { data: uploads, error: uploadError } = await uploadsQuery;
+
+    if (uploadError) {
+      console.error("Upload fetch error:", uploadError.message);
+    }
+
+    // ✅ Step 3: Fetch summaries (ratings, etc.)
+    const { data: summaries, error: sumError } = await supabaseAdmin
       .from("summaries")
       .select("*")
       .in("employee_id", employeeIds);
+
+    if (sumError) {
+      console.error("Summaries fetch error:", sumError.message);
+    }
 
     const ratings = summaries?.map((s) => s.rating).filter(Boolean) as number[];
     const avg_rating = ratings.length
@@ -61,7 +68,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       employees,
-      timesheets,
+      uploads,
       summaries,
       average_rating: avg_rating,
     });

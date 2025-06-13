@@ -1,3 +1,5 @@
+//..app/auth/login/page.tsx
+
 "use client";
 
 import { useState } from "react";
@@ -48,8 +50,6 @@ export default function LoginPage() {
       return;
     }
 
-    // ✅ Hardcoding org_id since we’re using a single-organization model
-    localStorage.setItem("org_id", "2d33db3a-232a-477e-bf67-7132efb1aa63");
     router.push("/dashboard");
     setLoading(false);
   };

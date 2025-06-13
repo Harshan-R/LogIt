@@ -1,52 +1,82 @@
-// app/api/insights/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ✅ use admin client
-
-// 🧼 Clean Ollama output
-function sanitizeOllamaOutput(response: string) {
-  return response.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-}
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { parseTimesheetExcel } from "@/lib/excelParser";
+import { sanitizeOllamaOutput } from "@/lib/ollamaUtils";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { employee_id, date_range, project_id } = body;
+    const { employee_id, date_range, file_path } = body;
 
-    if (!employee_id || !date_range) {
+    if (!employee_id || !date_range || !file_path) {
       return NextResponse.json(
-        { error: "Missing required filters (employee_id, date_range)" },
+        {
+          error:
+            "Missing required filters (employee_id, date_range, file_path)",
+        },
         { status: 400 }
       );
     }
 
-    const { data: timesheets, error } = await supabaseAdmin
+    const { data: fileData, error: fileError } = await supabaseAdmin.storage
       .from("timesheets")
-      .select(
-        `date, hours_worked, is_leave, work_summary, project:project_id ( name )`
-      )
-      .eq("employee_id", employee_id)
-      .gte("date", date_range.start)
-      .lte("date", date_range.end);
+      .download(file_path);
 
-    if (error || !timesheets?.length) {
-      return NextResponse.json({ error: "No data found." }, { status: 404 });
+    if (fileError || !fileData) {
+      return NextResponse.json(
+        { error: "Unable to fetch file" },
+        { status: 404 }
+      );
     }
 
-    const prompt = `You are an assistant summarizing employee productivity.
+    const file = new File(
+      [fileData],
+      file_path.split("/").pop() || "timesheet.xlsx",
+      { type: fileData.type }
+    );
 
-Here are the timesheet entries:
+    const timesheetRows = await parseTimesheetExcel(file);
+    const filtered = timesheetRows.filter((row) => {
+      return (
+        row.date >= date_range.start &&
+        row.date <= date_range.end &&
+        row.hours_worked
+      );
+    });
 
-${timesheets
+    if (!filtered.length) {
+      return NextResponse.json(
+        { error: "No relevant timesheet data." },
+        { status: 404 }
+      );
+    }
+
+    const prompt = `
+You are an assistant generating a high-level timesheet insight report.
+
+Data below contains daily logs with:
+- date, day, hours worked, project, work_done.
+
+Analyze all of it and return JSON in this exact format:
+{
+  "productivityRating": "High" | "Medium" | "Low",
+  "mainProjects": ["Project A", "Project B"],
+  "totalHours": 120,
+  "daysWorked": 18,
+  "leavesTaken": 2,
+  "summaryNotes": "..." (one paragraph summary)
+}
+
+Here is the timesheet data:
+${filtered
   .map(
     (t) =>
-      `Date: ${t.date}, Hours: ${t.hours_worked}, Leave: ${
-        t.is_leave
-      },  Summary: ${t.work_summary ?? "-"}`
+      `Date: ${t.date}, Day: ${t.day}, Hours: ${t.hours_worked}, Project: ${
+        t.project
+      }, Done: ${t.work_done || "-"}`
   )
   .join("\n")}
-
-Return a structured JSON with fields: productivityRating (High/Medium/Low), mainProjects (array), totalHours, daysWorked, leavesTaken, and summaryNotes.`;
+`;
 
     const ollamaRes = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
@@ -56,18 +86,16 @@ Return a structured JSON with fields: productivityRating (High/Medium/Low), main
         prompt,
         options: { temperature: 0.3 },
         stream: false,
-        think: false,
       }),
     });
 
     const ollamaJson = await ollamaRes.json();
-    const rawOutput = ollamaJson.response || "";
-    const cleanOutput = sanitizeOllamaOutput(rawOutput);
+    const cleanOutput = sanitizeOllamaOutput(ollamaJson.response || "");
 
     let insights = null;
     try {
       insights = JSON.parse(cleanOutput);
-    } catch (err) {
+    } catch {
       return NextResponse.json(
         { error: "Failed to parse summary." },
         { status: 500 }
