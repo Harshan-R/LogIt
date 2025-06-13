@@ -20,6 +20,7 @@
     "chartjs-node-canvas": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "eventsource-parser": "^3.0.2",
     "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",

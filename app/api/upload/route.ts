@@ -1,11 +1,10 @@
-// /app/api/upload/route.ts
+// app/api/upload/route.ts
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
-//import { analyzeTimesheetWithOllama } from "@/lib/ollama"; // next step
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ✅ use admin client
 import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
 import * as xlsx from "xlsx";
-import { Readable } from "stream";
+import { TimesheetEntry, OllamaAnalysisResult } from "@/types";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
   const fileBuffer = Buffer.from(await file.arrayBuffer());
   const fileName = `${Date.now()}-${file.name}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabaseAdmin.storage
     .from("timesheet-uploads")
     .upload(fileName, fileBuffer, {
       contentType: file.type,
@@ -36,25 +35,28 @@ export async function POST(req: Request) {
   const workbook = xlsx.read(fileBuffer);
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const jsonData = xlsx.utils.sheet_to_json(sheet);
 
-  // 🟩 Send to Ollama
-  const analyzed = await analyzeTimesheetWithOllama(jsonData);
+  const jsonData = xlsx.utils.sheet_to_json(sheet) as TimesheetEntry[];
 
-  // 🟦 Save to Supabase (example: insert multiple)
-  const enriched = jsonData.map((row: any, idx: number) => ({
+  // 🟩 Analyze with Ollama
+  const analyzed: OllamaAnalysisResult = await analyzeTimesheetWithOllama(
+    jsonData
+  );
+
+  // 🟦 Enrich data with Ollama output
+  const enriched = jsonData.map((row, idx) => ({
     employee_id: row.employee_id,
     project_id: row.project_id,
     date: row.date,
-    work_summary: row.work_summary || null,
-    hours_worked: row.hours || 0,
-    is_leave: row.is_leave || false,
-    performance: analyzed[idx]?.performance || "",
-    learning_note: analyzed[idx]?.learning_note || "",
+    work_summary: row.work_summary ?? null,
+    hours_worked: row.hours_worked ?? 0,
+    is_leave: row.is_leave ?? false,
+    performance: analyzed.entries[idx]?.performance ?? "",
+    learning_note: analyzed.entries[idx]?.learning_note ?? "",
     created_by: userId,
   }));
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await supabaseAdmin
     .from("timesheets")
     .insert(enriched);
 

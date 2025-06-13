@@ -1,0 +1,221 @@
+create table public.organizations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  code text unique not null,
+  created_at timestamp with time zone default now()
+);
+create table public.users (
+  id uuid primary key, -- Supabase Auth ID
+  org_id uuid references public.organizations(id) on delete cascade,
+  email text not null unique,
+  role text check (role in ('admin', 'manager', 'viewer')) not null,
+  created_at timestamp with time zone default now()
+);
+create table public.employees (
+  id uuid primary key default gen_random_uuid(),
+  emp_id text not null, -- from sheet
+  name text not null,
+  designation text,
+  org_id uuid references public.organizations(id) on delete cascade,
+  created_at timestamp with time zone default now()
+);
+create table public.projects (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  client_name text,
+  team text, -- e.g., 'Backend', 'QA', 'Design'
+  status text check (status in ('live', 'hold', 'completed')) default 'live',
+  org_id uuid references public.organizations(id) on delete cascade,
+  created_at timestamp with time zone default now()
+);
+create table public.timesheets (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references public.employees(id) on delete cascade,
+  project_id uuid references public.projects(id) on delete set null,
+  date date not null,
+  work_summary text,
+  hours_worked numeric,
+  is_leave boolean default false,
+  type_of_day text check (type_of_day in ('holiday', 'working_day', 'weekly_off')) default 'working_day',
+  performance text,
+  learning_note text,
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone default now()
+);
+create table public.uploads (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid references public.organizations(id) on delete cascade,
+  uploaded_by uuid references public.users(id),
+  filename text,
+  file_url text,
+  log_note text,
+  uploaded_at timestamp with time zone default now()
+);
+create table public.summaries (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references public.employees(id) on delete cascade,
+  type text check (type in ('weekly', 'monthly', 'project')) not null,
+  summary text,
+  rating numeric check (rating >= 0 and rating <= 10),
+  created_at timestamp with time zone default now()
+);
+
+
+INSERT INTO organizations (name, code) VALUES
+('AlphaTech Solutions', 'ALPHA123'),
+('BetaWare Innovations', 'BETA456'),
+('GammaSoft Corp', 'GAMMA789');
+
+
+-- AlphaTech users
+INSERT INTO users (id, org_id, email, role) VALUES
+('2e9d5275-6aa7-4b88-93fb-d6f9b9a3d123', (SELECT id FROM organizations WHERE code = 'ALPHA123'), 'alice.admin@example.com', 'admin'),
+('c3f88317-a07d-4706-bef7-8de6e9a8a7c4', (SELECT id FROM organizations WHERE code = 'ALPHA123'), 'tom.tl@example.com', 'manager');
+
+-- BetaWare users
+INSERT INTO users (id, org_id, email, role) VALUES
+('a75e9d65-5e3b-4d22-9bd2-b1471b27e8e7', (SELECT id FROM organizations WHERE code = 'BETA456'), 'bob.boss@example.com', 'admin'),
+('3a1d9f26-881f-46c2-82a4-2b2d236a6539', (SELECT id FROM organizations WHERE code = 'BETA456'), 'jen.tl@example.com', 'manager'),
+('eb4cf25e-cf56-4c4d-8cb5-65e40c91f80c', (SELECT id FROM organizations WHERE code = 'BETA456'), 'lee.tl@example.com', 'manager');
+
+-- GammaSoft users
+INSERT INTO users (id, org_id, email, role) VALUES
+('2f0ae097-0a13-4e7b-81e4-4aee41e1dff1', (SELECT id FROM organizations WHERE code = 'GAMMA789'), 'gary.admin@example.com', 'admin'),
+('b1a1f6a5-94ae-4d3b-a308-f00c4e96f7b3', (SELECT id FROM organizations WHERE code = 'GAMMA789'), 'rita.tl@example.com', 'manager'),
+('6104d33f-0e32-4e3a-8ef7-2dc6629c2163', (SELECT id FROM organizations WHERE code = 'GAMMA789'), 'sam.tl@example.com', 'manager'),
+('cc54bc21-e539-44aa-842e-c3123aa8bd82', (SELECT id FROM organizations WHERE code = 'GAMMA789'), 'elena.tl@example.com', 'manager');
+
+GammaSoft employees
+INSERT INTO employees (name, emp_id, designation, org_id) VALUES
+('Mickey Mouse', 'E301', 'Backend', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Donald Duck', 'E302', 'Frontend', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Goofy', 'E303', 'QA', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Pluto', 'E304', 'BA', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Daisy Duck', 'E305', 'DevOps', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Minnie Mouse', 'E306', 'Design', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Scrooge McDuck', 'E307', 'Tester', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Chip', 'E308', 'Frontend', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Dale', 'E309', 'Backend', (SELECT id FROM organizations WHERE code = 'GAMMA789')),
+('Pete', 'E310', 'QA', (SELECT id FROM organizations WHERE code = 'GAMMA789'));
+
+-- AlphaTech employees
+INSERT INTO employees (name, emp_id, designation, org_id) VALUES
+('John Doe', 'E101', 'Backend', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Jane Smith', 'E102', 'Frontend', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('David Roe', 'E103', 'QA', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Linda Ray', 'E104', 'BA', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Peter Pan', 'E105', 'DevOps', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Sarah Blue', 'E106', 'Design', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Mark Twin', 'E107', 'Tester', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Lucy Law', 'E108', 'Frontend', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Clark Kent', 'E109', 'Backend', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Bruce Wayne', 'E110', 'QA', (SELECT id FROM organizations WHERE code = 'ALPHA123'));
+
+-- BetaWare employees
+INSERT INTO employees (name, emp_id, designation, org_id) VALUES
+('Izuku Midoriya', 'E201', 'Backend', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Katsuki Bakugo', 'E202', 'Frontend', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('All Might', 'E203', 'QA', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Ochaco Uraraka', 'E204', 'BA', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Shoto Todoroki', 'E205', 'DevOps', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Momo Yaoyorozu', 'E206', 'Design', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Tenya Iida', 'E207', 'Tester', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Eijiro Kirishima', 'E208', 'Frontend', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Tsuyu Asui', 'E209', 'Backend', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Denki Kaminari', 'E210', 'QA', (SELECT id FROM organizations WHERE code = 'BETA456'));
+
+
+-- Insert Projects
+INSERT INTO projects (name, client_name, team, status, org_id) VALUES
+('Project Apollo', 'Client A', 'Backend', 'live', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Project Mercury', 'Client B', 'Frontend', 'hold', (SELECT id FROM organizations WHERE code = 'ALPHA123')),
+('Project Gemini', 'Client C', 'QA', 'completed', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Project Orion', 'Client D', 'Design', 'live', (SELECT id FROM organizations WHERE code = 'BETA456')),
+('Project Vega', 'Client E', 'DevOps', 'live', (SELECT id FROM organizations WHERE code = 'GAMMA789'));
+
+-- Insert Timesheets
+INSERT INTO timesheets (employee_id, project_id, date, work_summary, hours_worked, is_leave, type_of_day, performance, learning_note, created_by) VALUES
+(
+  (SELECT id FROM employees WHERE emp_id = 'E101'), 
+  (SELECT id FROM projects WHERE name = 'Project Apollo'), 
+  '2024-06-01',
+  'Implemented API endpoints',
+  8,
+  false,
+  'working_day',
+  'Excellent',
+  'Learned advanced SQL optimizations',
+  (SELECT id FROM users WHERE email = 'alice.admin@example.com')
+),
+(
+  (SELECT id FROM employees WHERE emp_id = 'E202'), 
+  (SELECT id FROM projects WHERE name = 'Project Mercury'), 
+  '2024-06-01',
+  'Frontend components development',
+  7.5,
+  false,
+  'working_day',
+  'Good',
+  'Improved React skills',
+  (SELECT id FROM users WHERE email = 'tom.tl@example.com')
+),
+(
+  (SELECT id FROM employees WHERE emp_id = 'E305'), 
+  (SELECT id FROM projects WHERE name = 'Project Vega'), 
+  '2024-06-02',
+  'Setup CI/CD pipelines',
+  6,
+  false,
+  'working_day',
+  'Very Good',
+  'Learned new Jenkins features',
+  (SELECT id FROM users WHERE email = 'gary.admin@example.com')
+);
+
+-- Insert Uploads
+INSERT INTO uploads (org_id, uploaded_by, filename, file_url, log_note) VALUES
+(
+  (SELECT id FROM organizations WHERE code = 'ALPHA123'),
+  (SELECT id FROM users WHERE email = 'alice.admin@example.com'),
+  'report_june.pdf',
+  'https://example.com/files/report_june.pdf',
+  'Monthly performance report'
+),
+(
+  (SELECT id FROM organizations WHERE code = 'BETA456'),
+  (SELECT id FROM users WHERE email = 'bob.boss@example.com'),
+  'design_mockup.png',
+  'https://example.com/files/design_mockup.png',
+  'UI design mockup'
+);
+
+-- Insert Summaries
+INSERT INTO summaries (employee_id, type, summary, rating) VALUES
+(
+  (SELECT id FROM employees WHERE emp_id = 'E101'),
+  'weekly',
+  'Completed all assigned backend tasks on time. Great team collaboration.',
+  9
+),
+(
+  (SELECT id FROM employees WHERE emp_id = 'E202'),
+  'monthly',
+  'Improved frontend performance significantly. Positive client feedback received.',
+  8
+),
+(
+  (SELECT id FROM employees WHERE emp_id = 'E305'),
+  'project',
+  'Successfully automated deployment for Project Vega. Reduced downtime by 30%.',
+  10
+);
+
+
+
+DELETE FROM users
+WHERE email = 'xxx@gmail.com';
+
+Select * from users;
+
+INSERT INTO users (id, org_id, email, role) VALUES
+('51854342-88f2-496b-8408-9dd4a4fc0677', (SELECT id FROM organizations WHERE code = 'GAMMA789'), 'xxx@gmail.com', 'admin');

@@ -1,7 +1,7 @@
-// File: app/api/timesheets/process/route.ts
+// app/api/timesheets/process/route.ts
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ✅ use admin client
 import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
 import type { TimesheetRow, OllamaAnalysisResult } from "@/types";
 
@@ -21,9 +21,9 @@ export async function POST(req: Request) {
     const ollamaResponse: OllamaAnalysisResult =
       await analyzeTimesheetWithOllama(parsedTimesheetData);
 
-    // Step 2: Update timesheet entries with performance and learning_note
+    // Step 2: Update each timesheet entry
     const updates = ollamaResponse.entries.map(async (entry) => {
-      return await supabase
+      return await supabaseAdmin
         .from("timesheets")
         .update({
           performance: entry.performance,
@@ -34,13 +34,13 @@ export async function POST(req: Request) {
 
     await Promise.all(updates);
 
-    // Step 3: Insert overall monthly summary into summaries table
-    await supabase.from("summaries").insert([
+    // Step 3: Insert summary
+    await supabaseAdmin.from("summaries").insert([
       {
         type: "monthly",
         summary: ollamaResponse.summary,
         rating: ollamaResponse.overall_rating,
-        employee_id: null, // team-level summary
+        employee_id: null, // or set if known
       },
     ]);
 

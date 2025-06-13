@@ -1,15 +1,14 @@
 // File: app/api/dashboard/summary/route.ts
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
     const { emp_id, employee_name, project_id, from_date, to_date } =
-      body;
-
+      await req.json();
     const org_id = "2d33db3a-232a-477e-bf67-7132efb1aa63";
+
     if (!org_id) {
       return NextResponse.json(
         { error: "org_id is required" },
@@ -17,8 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Filter employees by emp_id or name
-    let employeeQuery = supabase
+    let employeeQuery = supabaseAdmin
       .from("employees")
       .select("*")
       .eq("org_id", org_id);
@@ -28,7 +26,7 @@ export async function POST(req: Request) {
       employeeQuery = employeeQuery.ilike("name", `%${employee_name}%`);
 
     const { data: employees, error: empError } = await employeeQuery;
-    if (empError || !employees || employees.length === 0) {
+    if (empError || !employees?.length) {
       return NextResponse.json(
         { error: "No employees found" },
         { status: 404 }
@@ -37,8 +35,7 @@ export async function POST(req: Request) {
 
     const employeeIds = employees.map((e) => e.id);
 
-    // 2. Fetch timesheets for filtered employees + optional filters
-    let timesheetQuery = supabase
+    let timesheetQuery = supabaseAdmin
       .from("timesheets")
       .select("*, project:project_id(name)")
       .in("employee_id", employeeIds);
@@ -50,22 +47,18 @@ export async function POST(req: Request) {
 
     const { data: timesheets } = await timesheetQuery;
 
-    // 3. Fetch summaries
-    const { data: summaries } = await supabase
+    const { data: summaries } = await supabaseAdmin
       .from("summaries")
       .select("*")
       .in("employee_id", employeeIds);
 
-    // 4. Calculate average rating
     const ratings = summaries?.map((s) => s.rating).filter(Boolean) as number[];
-    const avg_rating =
-      ratings.length > 0
-        ? parseFloat(
-            (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
-          )
-        : null;
+    const avg_rating = ratings.length
+      ? parseFloat(
+          (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(2)
+        )
+      : null;
 
-    // 5. Build response
     return NextResponse.json({
       employees,
       timesheets,

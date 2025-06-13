@@ -11,14 +11,35 @@ export type TimesheetRow = {
   is_leave: boolean;
 };
 
+export interface TimesheetEntry {
+  id: string;
+  employee_id: string;
+  project_id: string;
+  date: string;
+  hours_worked: number;
+  is_leave: boolean;
+  work_summary: string;
+}
 export type OllamaAnalysisEntry = {
   id: string;
   performance: string;
   learning_note: string;
 };
 
-export type OllamaAnalysisResult = {
+// export type OllamaAnalysisResult = {
+//   summary: string;
+//   overall_rating: number;
+//   entries: OllamaAnalysisEntry[];
+// };
+
+export interface OllamaEntryResult {
+  id: string;
+  performance: string;
+  learning_note: string;
+}
+
+export interface OllamaAnalysisResult {
+  entries: OllamaEntryResult[];
   summary: string;
   overall_rating: number;
-  entries: OllamaAnalysisEntry[];
-};
+}
