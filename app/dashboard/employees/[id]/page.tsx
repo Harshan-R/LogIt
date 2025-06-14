@@ -8,7 +8,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-
 import {
   BarChart,
   Bar,
@@ -23,15 +22,12 @@ import {
   Legend,
 } from "recharts";
 
-type Timesheet = {
+type Summary = {
   id: string;
-  date: string;
-  hours_worked: number;
-  is_leave: boolean;
-  work_summary: string | null;
-  project: {
-    name: string;
-  } | null;
+  month_year: string;
+  rating: number;
+  summary: string;
+  json_data: any[];
 };
 
 type Employee = {
@@ -44,10 +40,7 @@ type Employee = {
 export default function EmployeeDetailsPage() {
   const { id } = useParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
-  //   const [barData, setBarData] = useState([]);
-  //   const [areaData, setAreaData] = useState([]);
-  //   const [radialData, setRadialData] = useState([]);
+  const [summaries, setSummaries] = useState<Summary[]>([]);
   const [loading, setLoading] = useState(true);
 
   type BarChartData = { date: string; hours: number };
@@ -61,58 +54,55 @@ export default function EmployeeDetailsPage() {
   useEffect(() => {
     if (!id) return;
 
-    const fetchEmployeeDetails = async () => {
+    const fetchData = async () => {
       setLoading(true);
 
-      const { data: employeeData, error: empError } = await supabase
+      const { data: empData, error: empErr } = await supabase
         .from("employees")
         .select("id, name, emp_id, designation")
         .eq("id", id)
         .single();
 
-      const { data: timesheetData, error: tsError } = await supabase
-        .from("timesheets")
-        .select(
-          `
-          id,
-          date,
-          hours_worked,
-          is_leave,
-          work_summary,
-          project:project_id ( name )
-        `
-        )
+      const { data: summariesData, error: summErr } = await supabase
+        .from("summaries")
+        .select("*")
         .eq("employee_id", id)
-        .order("date", { ascending: false });
+        .order("month_year", { ascending: false });
 
-      if (empError || tsError) {
-        console.error("Fetch error:", empError || tsError);
+      if (empErr || summErr) {
+        console.error("Fetch error:", empErr || summErr);
       } else {
-        setEmployee(employeeData);
-        const normalized = (timesheetData as any[]).map((entry) => ({
-          ...entry,
-          project: Array.isArray(entry.project)
-            ? entry.project[0]
-            : entry.project,
-        }));
-        setTimesheets(normalized);
+        setEmployee(empData);
+        setSummaries(summariesData as Summary[]);
 
-        // Bar Chart Data
+        // Flatten and sort json_data by date
+        const allEntries = summariesData
+          .flatMap((summary) => summary.json_data)
+          .filter((e) => e.date && e.hours_worked !== undefined)
+          .sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          );
+
+        // Bar Chart: Hours per day
         setBarData(
-          normalized.map((t) => ({ date: t.date, hours: t.hours_worked }))
+          allEntries.map((entry) => ({
+            date: entry.date,
+            hours: entry.hours_worked,
+          }))
         );
 
-        // Area Chart Data
-        let runningTotal = 0;
-        const cum = normalized.map((t) => {
-          runningTotal += t.hours_worked ?? 0;
-          return { date: t.date, total: runningTotal };
-        });
-        setAreaData(cum);
+        // Area Chart: Cumulative
+        let total = 0;
+        setAreaData(
+          allEntries.map((entry) => {
+            total += entry.hours_worked;
+            return { date: entry.date, total };
+          })
+        );
 
-        // Radial Chart Data
-        const worked = normalized.filter((t) => !t.is_leave).length;
-        const leaves = normalized.filter((t) => t.is_leave).length;
+        // Radial Chart: Worked vs Leave
+        const worked = allEntries.filter((e) => !e.is_leave).length;
+        const leaves = allEntries.filter((e) => e.is_leave).length;
         setRadialData([
           { name: "Worked", value: worked, fill: "#4ade80" },
           { name: "Leave", value: leaves, fill: "#f87171" },
@@ -122,12 +112,11 @@ export default function EmployeeDetailsPage() {
       setLoading(false);
     };
 
-    fetchEmployeeDetails();
+    fetchData();
   }, [id]);
 
-  if (loading) {
+  if (loading)
     return <Skeleton className="h-40 w-full mt-10 mx-auto max-w-4xl" />;
-  }
 
   if (!employee) {
     return (
@@ -201,42 +190,24 @@ export default function EmployeeDetailsPage() {
         </div>
 
         <div className="overflow-auto">
-          <h3 className="text-lg font-semibold mb-2">Timesheets</h3>
-          {timesheets.length === 0 ? (
-            <p className="text-sm text-gray-600">No timesheet records.</p>
+          <h3 className="text-lg font-semibold mb-2">Timesheet Details</h3>
+          {summaries.length === 0 ? (
+            <p className="text-sm text-gray-600">No data available.</p>
           ) : (
             <table className="min-w-full text-sm text-left">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Hours</th>
-                  <th className="p-2">Leave</th>
-                  <th className="p-2">Project</th>
+                  <th className="p-2">Month</th>
+                  <th className="p-2">Rating</th>
                   <th className="p-2">Summary</th>
                 </tr>
               </thead>
               <tbody>
-                {timesheets.map((entry) => (
-                  <tr key={entry.id} className="border-t">
-                    <td className="p-2">{entry.date}</td>
-                    <td className="p-2">{entry.hours_worked}</td>
-                    <td className="p-2">
-                      {entry.is_leave ? (
-                        <Badge variant="destructive">Yes</Badge>
-                      ) : (
-                        <Badge className="bg-green-500 text-white">No</Badge>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      {entry.project?.name || (
-                        <Badge variant="outline">Unassigned</Badge>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      {entry.work_summary || (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
+                {summaries.map((s) => (
+                  <tr key={s.id} className="border-t">
+                    <td className="p-2">{s.month_year}</td>
+                    <td className="p-2">{s.rating}</td>
+                    <td className="p-2">{s.summary}</td>
                   </tr>
                 ))}
               </tbody>

@@ -33,6 +33,7 @@ async function parseExcel(file: File): Promise<any[]> {
   const workbook = XLSX.read(data);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const json = XLSX.utils.sheet_to_json(sheet);
+  console.log(normalizeData(json));
   return normalizeData(json);
 }
 

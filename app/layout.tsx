@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LogIt",
-  description: "LogIt – Timesheet Analysis & Role-based Portal",
+  description: "LogIt – Timesheet Analysis Portal",
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        // inside RootLayout or DashboardLayout
+        
         
         {/* <SonnerToaster />
         {children} */}

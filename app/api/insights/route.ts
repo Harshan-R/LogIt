@@ -82,7 +82,7 @@ ${filtered
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "deepseek-r1:1.5b",
+        model: "gemma3:1b",
         prompt,
         options: { temperature: 0.3 },
         stream: false,

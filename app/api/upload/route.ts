@@ -4,13 +4,15 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { analyzeTimesheetWithOllama } from "@/lib/ollamaUtils";
 import { parseTimesheetExcel } from "@/lib/excelParser";
-import { TimesheetEntry, OllamaAnalysisResult } from "@/types";
+import { ParsedTimesheetRow, OllamaAnalysisResult } from "@/types";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
   const file = formData.get("file") as File;
-  
-  if (!file ) {
+  const emp_id = formData.get("emp_id") as string;
+  const month_year = formData.get("month_year") as string;
+
+  if (!file || !emp_id || !month_year) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   // ✅ Parse Excel using shared utility
-  let parsedRows: TimesheetEntry[];
+  let parsedRows: ParsedTimesheetRow[];
   try {
     parsedRows = await parseTimesheetExcel(file);
   } catch (err) {
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
   // ✅ Analyze with Ollama
   let analyzed: OllamaAnalysisResult;
   try {
-    analyzed = await analyzeTimesheetWithOllama(parsedRows);
+    analyzed = await analyzeTimesheetWithOllama(emp_id, month_year, parsedRows);
   } catch (err) {
     return NextResponse.json(
       { error: "Ollama analysis failed" },
@@ -51,27 +53,23 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ Enrich parsed rows with AI analysis
-  const enriched = parsedRows.map((row, idx) => ({
-    employee_id: row.emp_id || row.employee_id,
-    project: row.project || null,
-    date: row.date,
-    work_summary: row.work_summary ?? null,
-    hours_worked: row.hours_worked ?? 0,
-    is_leave: row.is_leave ?? false,
-    performance: analyzed.entries[idx]?.performance ?? "",
-    learning_note: analyzed.entries[idx]?.learning_note ?? "",
-    
-   
-  }));
-
-  const { error: insertError } = await supabaseAdmin
-    .from("timesheets")
-    .insert(enriched);
+  // ✅ Enrich and store in summaries table
+  const { error: insertError } = await supabaseAdmin.from("summaries").insert([
+    {
+      employee_id: emp_id,
+      month_year,
+      summary: analyzed.summary,
+      rating: analyzed.rating,
+      json_data: parsedRows, // Raw timesheet for traceability
+    },
+  ]);
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ message: "Upload and analysis successful" });
+  return NextResponse.json({
+    message: "Upload and analysis successful",
+    file_path: fileName,
+  });
 }
